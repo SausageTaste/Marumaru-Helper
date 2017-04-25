@@ -428,6 +428,14 @@ def prints(*args):
                 pass
             else:
                 return
+    except:
+        clear_dirt_way(LOG_FOL_S)
+        file_name = "{}{}.txt".format(LOG_FOL_S, mk_log_name("prints"))
+        f = open(file_name, 'w', encoding="utf8")
+        traceback.print_exc(file=f)
+        print("\n" + text_s, file=f)
+        f.close()
+        print("failed signal sent")
 
 ######## Classes ########
 
@@ -825,6 +833,23 @@ class UiMainWindow(QtGui.QMainWindow):
             else:
                 self.label_1.setText('Command error "con_prints" : The command takes one(any) argument.')
                 return
+        elif args_l[0] == "con_remaining_chap":
+            if args_len_i == 1:
+                print("-" * 50)
+                accum_i = 0
+                for x_I in self.item_l:
+                    a_remaining_chap_i, a_new_chap_i = x_I.remaining_chaps()
+                    if a_remaining_chap_i:
+                        accum_i += a_remaining_chap_i
+                        prints("{}: {}, {}".format(x_I.get_title(), a_remaining_chap_i, a_new_chap_i))
+                print("Sum: {}".format(accum_i))
+                print("-" * 50)
+                self.label_1.setText('Command "con_remaining_chap" : The amount of remaining chapters have been printed on console.')
+                self.lineEdit.clear()
+                return
+            else:
+                self.label_1.setText('Command error "con_remaining_chap" : The command takes no argument.')
+                return
         elif args_l[0] == "popup":
             if args_len_i == 1:
                 self.label_1.setText('Command "popup"')
@@ -838,6 +863,24 @@ class UiMainWindow(QtGui.QMainWindow):
                 return
             else:
                 self.label_1.setText('Command error "popup" : The command takes one(any) argument or not.')
+                return
+        elif args_l[0] == "screen_full":
+            if args_len_i == 1:
+                self.MainWindow.showFullScreen()
+                self.label_1.setText('Command "screen_full"')
+                self.lineEdit.clear()
+                return
+            else:
+                self.label_1.setText('Command error "screen_full" : The command takes no argument.')
+                return
+        elif args_l[0] == "screen_normal":
+            if args_len_i == 1:
+                self.MainWindow.showNormal()
+                self.label_1.setText('Command "screen_normal"')
+                self.lineEdit.clear()
+                return
+            else:
+                self.label_1.setText('Command error "screen_normal" : The command takes no argument.')
                 return
         elif args_l[0] == "save_config":
             if args_len_i == 1:
@@ -1459,19 +1502,41 @@ class UiMainWindow(QtGui.QMainWindow):
 
     def sort_data(self, data_l:list, option:int, reverse:bool):
         if option == 1:  # title
-            data_l.sort(key=lambda x: x[3], reverse=reverse)
+            data_l.sort(key=lambda x:x[3], reverse=reverse)
         elif option == 2:  # the number of chapters
+            data_l.sort(key=lambda x:x[3], reverse=False)
             data_l.sort(key=lambda x: len(x[4]), reverse=reverse)
         elif option == 3: # the number of remaining chapters
-            data_l.sort(key=self.sort_opt_2_remaining_chap, reverse=reverse)
+            data_l.sort(key=lambda x:x[3], reverse=False)
+            data_l.sort(key=self.sort_opt_3_remaining_chap, reverse=reverse)
+        elif option == 4:  # the number of new chapters
+            data_l.sort(key=lambda x:x[3], reverse=False)
+            data_l.sort(key=self.sort_opt_4_new_chap, reverse=reverse)
+        else:
+            raise WTF
 
         return data_l
 
-    def sort_opt_2_remaining_chap(self, x_t:tuple):
+    def sort_opt_3_remaining_chap(self, x_t:iter):
+        if not isinstance(x_t, list) and not isinstance(x_t, tuple):
+            raise TypeError(x_t)
+
         c = 0
         for x_l in x_t[4]:
             if x_l[0] == 0:
                 c += 1
+
+        return c
+
+    def sort_opt_4_new_chap(self, x_t:iter):
+        if not isinstance(x_t, list) and not isinstance(x_t, tuple):
+            raise TypeError(x_t)
+
+        c = 0
+        for x_l in x_t[4]:
+            if is_new(x_l[3]):
+                c += 1
+
         return c
 
     ######## util ########
@@ -1495,8 +1560,8 @@ class UiMainWindow(QtGui.QMainWindow):
             a_item = self.item_l[a_index]
             b_item = self.item_l[b_index]
 
-            a_full_data_t = a_item.get_full_data()
-            b_full_data_t = b_item.get_full_data()
+            a_full_data_t = a_item.get_full_data
+            b_full_data_t = b_item.get_full_data
 
             a_item.delete()
             self.item_l[a_index] = 0
@@ -1872,11 +1937,11 @@ class Item:  # QtGui.QMainWindow
 
         self.__scene = QtGui.QGraphicsScene()
 
-        self.ui_class.scroll_con_grid.addWidget(self.group_box, self.__index, 0, 1, 1)
+        self.ui_class.scroll_con_grid.addWidget(self.group_box, self.get_index(), 0, 1, 1)
 
     def retranslate(self):
         self.group_box.setFont(BFONT)
-        self.group_box.setTitle(_fromUtf8("({}) {}".format(self.__index + 1, self.__title)))
+        self.group_box.setTitle(_fromUtf8("({}) {}".format(self.get_index() + 1, self.__title)))
 
         ######## btn ########
 
@@ -2043,15 +2108,14 @@ class Item:  # QtGui.QMainWindow
         else:
             return -1
 
-        a = ImageView(self.__title, self.get_img_dir_s(), win_size_t)
-        a.exec_()
+        a = ImageView(self.__title, self.get_img_dir_s(), win_size_t, True)
 
     ######## setters for members ########
 
     def set_title(self, a_str: str):
         if isinstance(a_str, str):
             self.__title = a_str
-            self.group_box.setTitle(_fromUtf8("({}) {}".format(self.__index + 1, self.__title)))
+            self.group_box.setTitle(_fromUtf8("({}) {}".format(self.get_index() + 1, self.get_title())))
         else:
             raise WTF
 
@@ -2116,7 +2180,7 @@ class Item:  # QtGui.QMainWindow
         return self.__thum_url
 
     def get_img_dir_s(self):
-        return "{}{}.jpg".format(THUMB_FOL_S, self.__number)
+        return "{}{}.jpg".format(THUMB_FOL_S, self.get_number())
 
     def get_chapter_l(self):
         return self.__chapter_l
@@ -2130,11 +2194,6 @@ class Item:  # QtGui.QMainWindow
     def get_title(self):
         return self.__title
 
-    def get_full_data(self):
-        a = (self.__number, self.__url, self.__thum_url, self.__title, self.__chapter_l, self.__last_up,
-             self.__search_flag, self.__delete_flag, self.__show_unread_flag)
-        return a
-
     ######## ui retranslator according to context ########
 
     def update_btn_readall(self):
@@ -2144,23 +2203,23 @@ class Item:  # QtGui.QMainWindow
             self.btn_readall.setText(self.ui_class.data.ld_ui_get_a_value("item-btn_readall-false"))
 
     def update_btn_delete(self):
-        if self.__delete_flag:
+        if self.get_delete_flag():
             self.btn_delete.setText(self.ui_class.data.ld_ui_get_a_value("item-btn_delete-true"))
         else:
             self.btn_delete.setText(self.ui_class.data.ld_ui_get_a_value("item-btn_delete-false"))
 
     def update_label(self):
-        if self.__delete_flag:
+        if self.get_delete_flag():
             self.label.setText(self.ui_class.data.ld_ui_get_a_value("item-label-delete"))
-        elif self.__last_up > 0:
-            before_i = int(time.time() - self.__last_up)
+        elif self.get_last_up() > 0:
+            before_i = int(time.time() - self.get_last_up())
             time_t = sec_to_string(before_i)
             time_multiplyer_s = self.ui_class.data.ld_ui_get_a_value("misc-time-{}".format(time_t[1]))
             time_s = "{}{}{}".format(time_t[0], time_multiplyer_s, self.ui_class.data.get_value("ui", "misc-time-plural"))
             self.label.setText(self.ui_class.data.ld_ui_get_a_value("item-label-last_update").format(time_s))
-        elif self.__last_up == 0:
+        elif self.get_last_up() == 0:
             self.label.setText(self.ui_class.data.ld_ui_get_a_value("item-label-search_required"))
-        elif self.__last_up == -1:
+        elif self.get_last_up() == -1:
             self.label.setText(self.ui_class.data.ld_ui_get_a_value("item-label-failed"))
 
     ######## bool inspection ########
@@ -2172,16 +2231,23 @@ class Item:  # QtGui.QMainWindow
             return False
 
     def is_every_chapter_read(self):
-        for x_t in self.__chapter_l:
+        for x_t in self.get_chapter_l():
             if not x_t[0]:
                 return False
         return True
 
     ######## get info ########
 
-    def last_chap_date_distance(self):
+    def get_full_data(self):
+        """
+        :return: tuple[int, str, str, str, list[int, str, str, str], int, bool, bool, bool
+        """
+        return self.get_number(), self.get_url(), self.get_thum_url(), self.get_title(), self.get_chapter_l(),\
+               self.get_last_up(), self.get_search_flag(), self.get_delete_flag(), self.get_show_unread_flag()
+
+    def last_chap_date_distance(self) -> int:
         last_one_i = -1
-        for x_t in self.__chapter_l:
+        for x_t in self.get_chapter_l():
             if x_t[3] > last_one_i:
                 last_one_i = x_t[3]
         distance_i = int(time.time()) - last_one_i
@@ -2193,16 +2259,16 @@ class Item:  # QtGui.QMainWindow
         else:
             return distance_i
 
-    def get_save_string(self):
+    def get_save_string(self) -> str:
         chapter_s = ''
-        for x_t in self.__chapter_l:
+        for x_t in self.get_chapter_l():
             chapter_s += "{}|{}|{}|{}>".format(*x_t)
         chapter_s.rstrip('&')
         return "{}<{}<{}<{}<{}<{}<{}<{}<{}<{}\n%divider%\n". \
-            format(self.__number, self.__index, self.__url, self.__thum_url, self.__title, chapter_s,
-                   self.__last_up, self.__search_flag, self.__delete_flag, self.__show_unread_flag)
+               format(self.get_number(), self.get_index(), self.get_url(), self.get_thum_url(), self.get_title(), chapter_s,
+                      self.get_last_up(), self.get_search_flag(), self.get_delete_flag(), self.get_show_unread_flag())
 
-    def get_num_of_checked(self):
+    def get_num_of_checked(self) -> int:
         checked_i = 0
         for row in range(self.model.rowCount()):
             item = self.model.item(row)
@@ -2210,42 +2276,42 @@ class Item:  # QtGui.QMainWindow
                 checked_i += 1
         return checked_i
 
-    def find_url_by_name(self, chap_name: str):
-        for x_t in self.__chapter_l:
+    def find_url_by_name(self, chap_name:str) -> str:
+        for x_t in self.get_chapter_l():
             if x_t[1] == chap_name:
                 return x_t[2]
         raise WTF
 
-    def find_index_by_chap_name(self, chap_name: str):
-        for x, x_t in enumerate(self.__chapter_l):
+    def find_index_by_chap_name(self, chap_name:str) -> int:
+        for x, x_t in enumerate(self.get_chapter_l()):
             if x_t[1] == chap_name:
                 return x
-        raise WTF(self.__chapter_l)
+        raise WTF(self.get_chapter_l())
 
-    def find_index_by_chap_url(self, chap_url:str):
-        for x, x_t in enumerate(self.__chapter_l):
+    def find_index_by_chap_url(self, chap_url:str) -> int:
+        for x, x_t in enumerate(self.get_chapter_l()):
             if x_t[2] == chap_url:
                 return x
-        raise WTF(self.__chapter_l)
+        raise WTF(self.get_chapter_l())
 
     def remaining_chaps(self):
         not_read_count_i = 0
         new_count_i = 0
-        for x_t in self.__chapter_l:
+        for x_t in self.get_chapter_l():
             if x_t[0] == 0:
                 not_read_count_i += 1
             if is_new(x_t[3]):
                 new_count_i += 1
         return not_read_count_i, new_count_i
 
-    def print_string(self, not_read_only:bool=True, file=None):
+    def print_string(self, not_read_only:bool=True, file=None) -> None:
         title_printed = False
         for x_t in self.__chapter_l:
             if not not_read_only or not x_t[0]:
                 if not title_printed:
                     print(file=file)
                     print(self.__title, file=file)
-                    print(self.__url, file=file)
+                    print(self.get_url(), file=file)
                     title_printed = True
                 print("\n\t{}".format(x_t[1]), file=file)
                 print("\t{}".format(x_t[2]), file=file)
@@ -2279,11 +2345,11 @@ class Item:  # QtGui.QMainWindow
         self.group_box.deleteLater()
 
         self.ui_class.scroll_con_grid.removeWidget(self.group_box)
-        prints("deleted : {}".format(self.__url))
+        prints("deleted : {}".format(self.get_url()))
 
     def reload_title(self):
         try:
-            html_s = url_urllib_html(self.__url)
+            html_s = url_urllib_html(self.get_url())
         except:
             clear_dirt_way(LOG_FOL_S)
             file_name = "{}{}.txt".format(LOG_FOL_S, mk_log_name("ReloadTitle"))
@@ -2698,6 +2764,7 @@ class OptionWindow(QtGui.QDialog):
         self.com_main_startup_sort_opt.addItem(self.ui.data.get_value("st", "general-com_main_startup_sort_opt-1"))
         self.com_main_startup_sort_opt.addItem(self.ui.data.get_value("st", "general-com_main_startup_sort_opt-2"))
         self.com_main_startup_sort_opt.addItem(self.ui.data.get_value("st", "general-com_main_startup_sort_opt-3"))
+        self.com_main_startup_sort_opt.addItem(self.ui.data.get_value("st", "general-com_main_startup_sort_opt-4"))
 
         self.com_main_startup_sort_opt.setCurrentIndex(self.ui.cfg["main-sort_on_init-option"])
 
@@ -2782,7 +2849,7 @@ class NoticeWindow(QtGui.QDialog):
 
 
 class ImageView(QtGui.QDialog):
-    def __init__(self, title_s:str, img_dir_s:str, size_t:tuple):
+    def __init__(self, title_s:str, img_dir_s:str, size_t:tuple, full_screen:False):
         super().__init__()
         self.setWindowTitle(title_s)
 
@@ -2801,6 +2868,8 @@ class ImageView(QtGui.QDialog):
 
         self.__gview.resize(a, b)
         self.setFixedSize(a, b)
+
+        self.exec_()
 
 
 #### QThreads ####
@@ -2828,9 +2897,9 @@ class FetchAll(QThread):
                     try_count += 1
                     try:
                         html_s = url_urllib_html(target_I.get_url())
-                    except ue.URLError:
+                    except (ue.URLError, socket.timeout):
                         if try_count >= TRY_I:
-                            raise ue.URLError(": failed after {} retry.".format(TRY_I))
+                            raise WTF(": failed after {} try.".format(TRY_I))
                         else:
                             print("retrying... URLError")
                             time.sleep(1)
@@ -2990,6 +3059,7 @@ class DataContainer:
     def get_dict(self):
         return self.__ld_ui
 
+
 class ContainerComboBox(QtGui.QComboBox):
     def __init__(self, QWidget_parent, current_s: str):
         super().__init__(QWidget_parent)
@@ -3003,7 +3073,6 @@ class ContainerComboBox(QtGui.QComboBox):
 
 ######## Main ########
 
-
 def main():
     app = QtGui.QApplication(sys.argv)
     main_window = QtGui.QMainWindow()
@@ -3013,7 +3082,6 @@ def main():
     a = app.exec_()
     ui.on_exit()
     sys.exit(a)
-
 
 if __name__ == '__main__':
     main()
